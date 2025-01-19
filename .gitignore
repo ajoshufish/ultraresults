@@ -1,3 +1,7 @@
+#Base development items first, then template items after.
+*.ipynb
+
+########################
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
