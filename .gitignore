@@ -1,5 +1,6 @@
 #Base development items first, then template items after.
 *.ipynb
+*.xlsx
 
 # OS
 *.DS_Store
