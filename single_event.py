@@ -19,34 +19,41 @@ def single_event_scrape(url):
     event_info = tables[3]
     results_info = tables[5].iloc[:, 0:10]
 
-    race_distance = event_info[1][2].split(' ', 1)[0]
-    event_title = event_info[1][1].split(' ', 1)[1].rsplit(' ', 2)[0] #culls out which iteration of the race this is
-    if(len(event_info[1][0]) > 10):
-        #multiday, take just the first day as the date the event took place
+    race_duration = event_info[1][2].split(' ', 1)[0]
+    if(not re.search('^[0-9]+', event_info[1][1])): #unique or first event
+        event_title = event_info[1][1].rsplit(' ',1)[0]
+    else:
+        event_title = event_info[1][1].split(' ', 1)[1].rsplit(' ', 2)[0] #culls out which iteration of the race this is    
+    
+    if(len(event_info[1][0]) > 10): #multiday, take just the first day as the date the event took place
         race_startdate = event_info[1][0].split('.', 1)[0] + '.'+ event_info[1][0].split('.', 1)[1].split('.', 1)[1]
     else:
         race_startdate = event_info[1][0] 
+    
     race_year = pd.to_numeric(race_startdate.rsplit('.',1)[1])
 
     results_info.columns = ['Rank', 'Time', 'Name', 'City', 'Nation', 'YOB', 'Gender', 'Gender_Rank', 'Category', 'Cat_Rank']
     results_info['Ath_ID'] = ath_ids
 
     times = results_info['Time']
-    duration = pd.Series([])
-    for i in range(len(times)):
-        entry = times.iloc[i]
-        if(re.search(r'^[0-9]+d', entry)): #multi-day time
-            days = int(entry.split()[0].split('d')[0])
-            hrs = int(entry.split()[1].split(':')[0])
-            mins = int(entry.split()[1].split(':')[1])
-            secs = int(entry.split()[1].split(':')[2])
-        else:
-            days = 0
-            hrs = int(entry.split(':')[0])
-            mins = int(entry.split(':')[0])
-            secs = int(entry.split(':')[0])
-        time = secs + (60 * mins) + (3600 * hrs) + (86400 * days)
-        duration[i] = time
+    if(times[0].split(' ')[1] == 'km'): #dealing with a timed race, strip unit off the end (km)
+        duration = times.str.split(' ', expand=True)[0]
+    else: #distance event, convert times to seconds
+        duration = pd.Series([])
+        for i in range(len(times)):
+            entry = times.iloc[i]
+            if(re.search(r'^[0-9]+d', entry)): #multi-day time
+                days = int(entry.split()[0].split('d')[0])
+                hrs = int(entry.split()[1].split(':')[0])
+                mins = int(entry.split()[1].split(':')[1])
+                secs = int(entry.split()[1].split(':')[2])
+            else:
+                days = 0
+                hrs = int(entry.split(':')[0])
+                mins = int(entry.split(':')[0])
+                secs = int(entry.split(':')[0])
+            time = secs + (60 * mins) + (3600 * hrs) + (86400 * days)
+            duration[i] = time
     duration.name = 'Duration'
     results_info = pd.concat([results_info, duration], axis = 1)
 
@@ -131,10 +138,10 @@ def single_event_scrape(url):
             race_id = max(rcs['race_id'][1:]) + 1 #no, so increment
         else:
             race_id = 1
-        rsh.append([race_id, evid, race_distance, race_year])
+        rsh.append([race_id, evid, race_duration, race_year])
         wb.save(path)
 
-        rcs.loc[race_id] =  [race_id, evid, race_distance, race_year] #update our internal race list
+        rcs.loc[race_id] =  [race_id, evid, race_duration, race_year] #update our internal race list
 
     # Now to add participants and results -- for each item in the result table:
     # 1) Check the participant table to see if we want to write a new participant entry based on the ath_id, if we do then write it
@@ -162,6 +169,3 @@ def single_event_scrape(url):
         else: #this race does not have any entries, so let's add new entries for this race
                 ressh.append([resid, evid, entry['Ath_ID'], entry['Duration'], entry['Rank'], entry['Category'], entry['Cat_Rank'], entry['Gender_Rank']])
     wb.save(path)
-
-#url = 'https://statistik.d-u-v.org/getresultevent.php?event=104431'
-#single_event_scrape(url)
